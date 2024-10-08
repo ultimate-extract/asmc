@@ -1,0 +1,48 @@
+name: Build and release
+
+on:
+  push:
+  workflow_dispatch:
+      inputs:
+        version:
+          required: true
+          type: string
+        
+
+jobs: 
+  build:
+    runs-on: ubuntu-latest
+
+    steps: 
+    - uses: actions/checkout@v4
+
+    - name: Build
+      run: |
+        echo "${{ github.event.head_commit.message }}"
+        cd source/asmc
+        make asmc
+        make asmc64
+  
+    - name: Check Tag
+      id: check-tag
+      run: |
+          comment="$(git log -1 --pretty=format:'%s')"
+          
+          if [[ "$comment" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
+              echo "version=$comment" >> $GITHUB_OUTPUT
+          elif [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
+              echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+              echo "SKIPPING RELEASE: '$comment'"
+          fi
+          
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: steps.check-tag.outputs.version
+      with:
+          tag_name: "v${{ steps.check-tag.outputs.version }}"
+          name: "v${{ steps.check-tag.outputs.version }}"
+          make_latest: true
+          files: |
+            source/asmc/asmc
+            source/asmc/asmc64
